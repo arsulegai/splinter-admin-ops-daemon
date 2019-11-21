@@ -1,4 +1,4 @@
-// Copyright 2019 Cargill Incorporated
+// Copyright 2019 Walmart Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ use actix_web::{
     client::Client, error as ActixError, web, App, FromRequest, HttpResponse, HttpServer, Result,
 };
 use futures::future::Future;
-use gameroom_database::ConnectionPool;
 use splinter::node_registry::Node;
 
 pub use error::{RestApiResponseError, RestApiServerError};
@@ -47,7 +46,6 @@ pub fn run(
     bind_url: &str,
     splinterd_url: &str,
     node: Node,
-    database_connection: ConnectionPool,
     public_key: String,
 ) -> Result<
     (
@@ -61,13 +59,12 @@ pub fn run(
     let gameroomd_data = GameroomdData { public_key };
     let (tx, rx) = mpsc::channel();
     let join_handle = thread::Builder::new()
-        .name("GameroomdRestApi".into())
+        .name("AdminDaemonService".into())
         .spawn(move || {
-            let sys = actix::System::new("Gameroomd-Rest-API");
+            let sys = actix::System::new("DaemonService-REST-API");
 
             let addr = HttpServer::new(move || {
                 App::new()
-                    .data(database_connection.clone())
                     .data(Client::new())
                     .data(splinterd_url.to_owned())
                     .data(node.clone())
@@ -92,7 +89,7 @@ pub fn run(
                     )
                     .service(web::resource("/nodes").route(web::get().to_async(routes::list_nodes)))
                     .service(
-                        web::resource("/gamerooms/propose")
+                        web::resource("/circuits/propose")
                             .route(web::post().to_async(routes::propose_gameroom)),
                     )
                     .service(
@@ -112,45 +109,26 @@ pub fn run(
                                     .route(web::post().to_async(routes::proposal_vote)),
                             )
                             .service(
-                                web::resource("/{proposal_id}")
-                                    .route(web::get().to_async(routes::fetch_proposal)),
-                            )
-                            .service(
-                                web::resource("")
-                                    .route(web::get().to_async(routes::list_proposals)),
-                            ),
-                    )
-                    .service(
-                        web::scope("/notifications")
-                            .service(
-                                web::scope("/{notification_id}")
-                                    .service(
-                                        web::resource("")
-                                            .route(web::get().to_async(routes::fetch_notificaiton)),
-                                    )
-                                    .service(
-                                        web::resource("/read").route(
-                                            web::patch().to_async(routes::read_notification),
-                                        ),
-                                    ),
-                            )
-                            .service(
-                                web::resource("")
-                                    .route(web::get().to_async(routes::list_unread_notifications)),
-                            ),
-                    )
-                    .service(
-                        web::resource("/submit")
-                            .route(web::post().to_async(routes::submit_signed_payload)),
-                    )
-                    .service(
-                        web::scope("/gamerooms")
-                            .service(
-                                web::resource("")
-                                    .route(web::get().to_async(routes::list_gamerooms)),
-                            )
-                            .service(
-                                web::scope("/{circuit_id}")
+                                    web::resource("/{proposal_id}")
+                                        .route(web::get().to_async(routes::fetch_proposal)),
+                                )
+                                .service(
+                                    web::resource("")
+                                        .route(web::get().to_async(routes::list_proposals)),
+                                ),
+                        )
+                        .service(
+                            web::resource("/submit")
+                                .route(web::post().to_async(routes::submit_signed_payload)),
+                        )
+                        .service(
+                            web::scope("/circuits")
+                                .service(
+                                    web::resource("")
+                                        .route(web::get().to_async(routes::list_gamerooms)),
+                                )
+                                .service(
+                                    web::scope("/{circuit_id}")
                                     .service(
                                         web::resource("")
                                             .route(web::get().to_async(routes::fetch_gameroom)),
@@ -162,18 +140,6 @@ pub fn run(
                     )
                     .service(
                         web::resource("/subscribe").route(web::get().to(routes::connect_socket)),
-                    )
-                    .service(
-                        web::scope("/xo/{circuit_id}").service(
-                            web::scope("/games")
-                                .service(
-                                    web::resource("/{game_id}")
-                                        .route(web::get().to_async(routes::fetch_xo)),
-                                )
-                                .service(
-                                    web::resource("").route(web::get().to_async(routes::list_xo)),
-                                ),
-                        ),
                     )
                     .service(
                         web::scope("/keys").service(

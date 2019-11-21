@@ -17,20 +17,16 @@ mod gameroom;
 mod gameroom_websocket;
 mod key;
 mod node;
-mod notification;
 mod proposal;
 mod submit;
-mod xo_games;
 
 pub use authenticate::*;
 pub use gameroom::*;
 pub use gameroom_websocket::*;
 pub use key::*;
 pub use node::*;
-pub use notification::*;
 pub use proposal::*;
 pub use submit::*;
-pub use xo_games::*;
 
 use percent_encoding::{AsciiSet, CONTROLS};
 use serde::{Deserialize, Serialize};

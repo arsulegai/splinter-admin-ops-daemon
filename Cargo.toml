@@ -1,4 +1,4 @@
-# Copyright 2019 Cargill Incorporated
+# Copyright 2019 Walmart Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,10 @@
 # limitations under the License.
 
 [package]
-name = "gameroom-daemon"
+name = "Scabbard-Admin-Service-Daemon"
 version = "0.3.6"
-authors = ["Cargill Incorporated"]
+authors = ["Walmart Inc."]
 edition = "2018"
-license = "Apache-2.0"
 
 [dependencies]
 actix = { version = "0.8", default-features = false }

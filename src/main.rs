@@ -1,4 +1,4 @@
-// Copyright 2019 Cargill Incorporated
+// Copyright 2019 Walmart Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ extern crate serde_derive;
 extern crate serde_json;
 
 mod application_metadata;
-mod authorization_handler;
 mod config;
 mod error;
 mod rest_api;
@@ -30,7 +29,6 @@ mod rest_api;
 use std::thread;
 
 use flexi_logger::{style, DeferredNow, LogSpecBuilder, Logger};
-use gameroom_database::ConnectionPool;
 use log::Record;
 use sawtooth_sdk::signing::create_context;
 use splinter::events::Reactor;
@@ -63,11 +61,11 @@ fn run() -> Result<(), GameroomDaemonError> {
     let matches = clap_app!(myapp =>
         (name: APP_NAME)
         (version: VERSION)
-        (author: "Cargill Incorporated")
-        (about: "Daemon Package for Gameroom")
+        (author: "Walmart Inc.")
+        (about: "Daemon Package for PO Administration")
         (@arg verbose: -v +multiple "Log verbosely")
         (@arg database_url: --("database-url") +takes_value "Database connection for Gameroom rest API")
-        (@arg bind: -b --bind +takes_value "connection endpoint for Gameroom rest API")
+        (@arg bind: -b --bind +takes_value "connection endpoint for Administration Service rest API")
         (@arg splinterd_url: --("splinterd-url") +takes_value "connection endpoint to SplinterD rest API")
     )
     .get_matches();
@@ -93,9 +91,6 @@ fn run() -> Result<(), GameroomDaemonError> {
         .with_cli_args(&matches)
         .build()?;
 
-    let connection_pool: ConnectionPool =
-        gameroom_database::create_connection_pool(config.database_url())?;
-
     // Generate a public/private key pair
     let context = create_context("secp256k1")?;
     let private_key = context.new_random_private_key()?;
@@ -106,19 +101,10 @@ fn run() -> Result<(), GameroomDaemonError> {
 
     let reactor = Reactor::new();
 
-    authorization_handler::run(
-        config.splinterd_url().into(),
-        node.identity.clone(),
-        connection_pool.clone(),
-        private_key.as_hex(),
-        reactor.igniter(),
-    )?;
-
     let (rest_api_shutdown_handle, rest_api_join_handle) = rest_api::run(
         config.rest_api_endpoint(),
         config.splinterd_url(),
         node,
-        connection_pool.clone(),
         public_key.as_hex(),
     )?;
 
