@@ -17,7 +17,6 @@ use diesel;
 use std::error::Error;
 use std::fmt;
 
-use gameroom_database::DatabaseError;
 use protobuf::error::ProtobufError;
 use splinter::admin::error::MarshallingError;
 
@@ -81,12 +80,6 @@ impl fmt::Display for RestApiResponseError {
             RestApiResponseError::BadRequest(e) => write!(f, "Bad Request: {}", e),
             RestApiResponseError::NotFound(e) => write!(f, "Not Found: {}", e),
         }
-    }
-}
-
-impl From<DatabaseError> for RestApiResponseError {
-    fn from(err: DatabaseError) -> RestApiResponseError {
-        RestApiResponseError::DatabaseError(err.to_string())
     }
 }
 

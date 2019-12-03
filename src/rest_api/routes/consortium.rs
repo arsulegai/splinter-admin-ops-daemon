@@ -15,11 +15,6 @@ use std::collections::HashMap;
 
 use actix_web::{client::Client, error, http::StatusCode, web, Error, HttpResponse};
 use futures::{Future, IntoFuture};
-use gameroom_database::{
-    helpers,
-    models::{Gameroom, GameroomMember as DbGameroomMember},
-    ConnectionPool,
-};
 use openssl::hash::{hash, MessageDigest};
 use protobuf::Message;
 use splinter::admin::messages::{
@@ -34,73 +29,28 @@ use splinter::protos::admin::{
 use uuid::Uuid;
 
 use crate::application_metadata::ApplicationMetadata;
-use crate::rest_api::{GameroomdData, RestApiResponseError};
+use crate::rest_api::{ConsortiumData, RestApiResponseError};
 
 use super::{
     get_response_paging_info, validate_limit, ErrorResponse, SuccessResponse, DEFAULT_LIMIT,
     DEFAULT_OFFSET,
 };
+use db_models::models::Consortium;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CreateGameroomForm {
+pub struct CreateConsortiumForm {
     alias: String,
     members: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct ApiGameroom {
-    circuit_id: String,
-    authorization_type: String,
-    persistence: String,
-    routes: String,
-    circuit_management_type: String,
-    members: Vec<ApiGameroomMember>,
-    alias: String,
-    status: String,
-}
-
-impl ApiGameroom {
-    fn from(db_gameroom: Gameroom, db_members: Vec<DbGameroomMember>) -> Self {
-        Self {
-            circuit_id: db_gameroom.circuit_id.to_string(),
-            authorization_type: db_gameroom.authorization_type.to_string(),
-            persistence: db_gameroom.persistence.to_string(),
-            routes: db_gameroom.routes.to_string(),
-            circuit_management_type: db_gameroom.circuit_management_type.to_string(),
-            members: db_members
-                .into_iter()
-                .map(ApiGameroomMember::from)
-                .collect(),
-            alias: db_gameroom.alias.to_string(),
-            status: db_gameroom.status.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct ApiGameroomMember {
-    node_id: String,
-    endpoint: String,
-}
-
-impl ApiGameroomMember {
-    fn from(db_circuit_member: DbGameroomMember) -> Self {
-        ApiGameroomMember {
-            node_id: db_circuit_member.node_id.to_string(),
-            endpoint: db_circuit_member.endpoint.to_string(),
-        }
-    }
-}
-
-pub fn propose_gameroom(
-    pool: web::Data<ConnectionPool>,
-    create_gameroom: web::Json<CreateGameroomForm>,
+pub fn propose_consortium(
+    create_consortium: web::Json<CreateConsortiumForm>,
     node_info: web::Data<Node>,
     client: web::Data<Client>,
     splinterd_url: web::Data<String>,
-    gameroomd_data: web::Data<GameroomdData>,
+    consortium_data: web::Data<ConsortiumData>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
-    fetch_node_information(&create_gameroom.members, &splinterd_url, client).then(move |resp| {
+    fetch_node_information(&create_consortium.members, &splinterd_url, client).then(move |resp| {
         let nodes = match resp {
             Ok(nodes) => nodes,
             Err(err) => match err {
@@ -143,7 +93,7 @@ pub fn propose_gameroom(
             acc
         });
 
-        let scabbard_admin_keys = vec![gameroomd_data.get_ref().public_key.clone()];
+        let scabbard_admin_keys = vec![consortium_data.get_ref().public_key.clone()];
 
         let mut scabbard_args = vec![];
         scabbard_args.push((
@@ -166,7 +116,7 @@ pub fn propose_gameroom(
                     .iter()
                     .filter_map(|other_node| {
                         if other_node.node_id != node.node_id {
-                            Some(format!("gameroom_{}", other_node.node_id))
+                            Some(format!("consortium_{}", other_node.node_id))
                         } else {
                             None
                         }
@@ -186,15 +136,15 @@ pub fn propose_gameroom(
             service_args.push(("peer_services".into(), peer_services));
 
             roster.push(SplinterService {
-                service_id: format!("gameroom_{}", node.node_id),
+                service_id: format!("consortium_{}", node.node_id),
                 service_type: "scabbard".to_string(),
                 allowed_nodes: vec![node.node_id.to_string()],
                 arguments: service_args,
             });
         }
 
-        let application_metadata = match check_alias_uniqueness(pool, &create_gameroom.alias) {
-            Ok(()) => match ApplicationMetadata::new(&create_gameroom.alias, &scabbard_admin_keys)
+        // TODO: Check uniqueness
+        let application_metadata = match ApplicationMetadata::new(&create_consortium.alias, &scabbard_admin_keys)
                 .to_bytes()
             {
                 Ok(bytes) => bytes,
@@ -204,17 +154,11 @@ pub fn propose_gameroom(
                         .json(ErrorResponse::internal_error())
                         .into_future();
                 }
-            },
-            Err(err) => {
-                return HttpResponse::BadRequest()
-                    .json(ErrorResponse::bad_request(&err.to_string()))
-                    .into_future();
-            }
-        };
+            };
 
         let create_request = CreateCircuit {
             circuit_id: format!(
-                "gameroom{}::{}",
+                "consortium{}::{}",
                 partial_circuit_id,
                 Uuid::new_v4().to_string()
             ),
@@ -224,7 +168,7 @@ pub fn propose_gameroom(
             persistence: PersistenceType::Any,
             durability: DurabilityType::NoDurability,
             routes: RouteType::Any,
-            circuit_management_type: "gameroom".to_string(),
+            circuit_management_type: "consortium".to_string(),
             application_metadata,
         };
 
@@ -317,19 +261,6 @@ fn fetch_node_information(
     )
 }
 
-fn check_alias_uniqueness(
-    pool: web::Data<ConnectionPool>,
-    alias: &str,
-) -> Result<(), RestApiResponseError> {
-    if let Some(gameroom) = helpers::fetch_gameroom_by_alias(&*pool.get()?, alias)? {
-        return Err(RestApiResponseError::BadRequest(format!(
-            "Gameroom with alias {} already exists",
-            gameroom.alias
-        )));
-    }
-    Ok(())
-}
-
 fn make_payload(
     create_request: CreateCircuit,
     local_node: String,
@@ -349,138 +280,4 @@ fn make_payload(
     circuit_management_payload.set_circuit_create_request(circuit_proto);
     let payload_bytes = circuit_management_payload.write_to_bytes()?;
     Ok(payload_bytes)
-}
-
-pub fn list_gamerooms(
-    pool: web::Data<ConnectionPool>,
-    query: web::Query<HashMap<String, String>>,
-) -> Box<dyn Future<Item = HttpResponse, Error = Error>> {
-    let mut base_link = "api/gamerooms?".to_string();
-    let offset: usize = query
-        .get("offset")
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| DEFAULT_OFFSET.to_string())
-        .parse()
-        .unwrap_or_else(|_| DEFAULT_OFFSET);
-
-    let limit: usize = query
-        .get("limit")
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| DEFAULT_LIMIT.to_string())
-        .parse()
-        .unwrap_or_else(|_| DEFAULT_LIMIT);
-
-    let status_optional = query.get("status").map(ToOwned::to_owned);
-
-    if let Some(status) = status_optional.clone() {
-        base_link.push_str(format!("status={}?", status).as_str());
-    }
-
-    Box::new(
-        web::block(move || list_gamerooms_from_db(pool, status_optional, limit, offset)).then(
-            move |res| match res {
-                Ok((gamerooms, query_count)) => {
-                    let paging_info = get_response_paging_info(
-                        limit,
-                        offset,
-                        "api/gamerooms?",
-                        query_count as usize,
-                    );
-                    Ok(HttpResponse::Ok().json(SuccessResponse::list(gamerooms, paging_info)))
-                }
-                Err(err) => {
-                    debug!("Internal Server Error: {}", err);
-                    Ok(HttpResponse::InternalServerError().json(ErrorResponse::internal_error()))
-                }
-            },
-        ),
-    )
-}
-
-fn list_gamerooms_from_db(
-    pool: web::Data<ConnectionPool>,
-    status_optional: Option<String>,
-    limit: usize,
-    offset: usize,
-) -> Result<(Vec<ApiGameroom>, i64), RestApiResponseError> {
-    let db_limit = validate_limit(limit);
-    let db_offset = offset as i64;
-
-    if let Some(status) = status_optional {
-        let gamerooms = helpers::list_gamerooms_with_paging_and_status(
-            &*pool.get()?,
-            &status,
-            db_limit,
-            db_offset,
-        )?
-        .into_iter()
-        .map(|gameroom| {
-            let circuit_id = gameroom.circuit_id.to_string();
-            let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
-                &*pool.get()?,
-                &circuit_id,
-                &gameroom.status,
-            )?;
-            Ok(ApiGameroom::from(gameroom, members))
-        })
-        .collect::<Result<Vec<ApiGameroom>, RestApiResponseError>>()?;
-        Ok((gamerooms, helpers::get_gameroom_count(&*pool.get()?)?))
-    } else {
-        let gamerooms = helpers::list_gamerooms_with_paging(&*pool.get()?, db_limit, db_offset)?
-            .into_iter()
-            .map(|gameroom| {
-                let circuit_id = gameroom.circuit_id.to_string();
-                let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
-                    &*pool.get()?,
-                    &circuit_id,
-                    &gameroom.status,
-                )?;
-                Ok(ApiGameroom::from(gameroom, members))
-            })
-            .collect::<Result<Vec<ApiGameroom>, RestApiResponseError>>()?;
-        Ok((gamerooms, helpers::get_gameroom_count(&*pool.get()?)?))
-    }
-}
-
-pub fn fetch_gameroom(
-    pool: web::Data<ConnectionPool>,
-    circuit_id: web::Path<String>,
-) -> Box<dyn Future<Item = HttpResponse, Error = Error>> {
-    Box::new(
-        web::block(move || fetch_gameroom_from_db(pool, &circuit_id)).then(|res| match res {
-            Ok(gameroom) => Ok(HttpResponse::Ok().json(gameroom)),
-            Err(err) => match err {
-                error::BlockingError::Error(err) => {
-                    match err {
-                        RestApiResponseError::NotFound(err) => Ok(HttpResponse::NotFound()
-                            .json(ErrorResponse::not_found(&err.to_string()))),
-                        _ => Ok(HttpResponse::BadRequest()
-                            .json(ErrorResponse::bad_request(&err.to_string()))),
-                    }
-                }
-                error::BlockingError::Canceled => {
-                    debug!("Internal Server Error: {}", err);
-                    Ok(HttpResponse::InternalServerError().json(ErrorResponse::internal_error()))
-                }
-            },
-        }),
-    )
-}
-
-fn fetch_gameroom_from_db(
-    pool: web::Data<ConnectionPool>,
-    circuit_id: &str,
-) -> Result<ApiGameroom, RestApiResponseError> {
-    if let Some(gameroom) = helpers::fetch_gameroom(&*pool.get()?, circuit_id)? {
-        let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
-            &*pool.get()?,
-            &gameroom.circuit_id,
-            &gameroom.status,
-        )?;
-        return Ok(ApiGameroom::from(gameroom, members));
-    }
-    Err(RestApiResponseError::NotFound(format!(
-        "Gameroom with id {} not found",
-        circuit_id
-    )))
 }

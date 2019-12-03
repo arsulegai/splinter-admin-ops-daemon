@@ -12,17 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod authenticate;
-mod gameroom;
-mod gameroom_websocket;
+mod consortium;
 mod key;
 mod node;
 mod proposal;
 mod submit;
 
-pub use authenticate::*;
-pub use gameroom::*;
-pub use gameroom_websocket::*;
+pub use consortium::*;
 pub use key::*;
 pub use node::*;
 pub use proposal::*;

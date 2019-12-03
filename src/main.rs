@@ -20,6 +20,7 @@ extern crate log;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+extern crate db_models;
 
 mod application_metadata;
 mod config;
@@ -31,10 +32,9 @@ use std::thread;
 use flexi_logger::{style, DeferredNow, LogSpecBuilder, Logger};
 use log::Record;
 use sawtooth_sdk::signing::create_context;
-use splinter::events::Reactor;
 
-use crate::config::{get_node, GameroomConfigBuilder};
-use crate::error::GameroomDaemonError;
+use crate::config::{get_node, ConsortiumConfigBuilder};
+use crate::error::AdminOpDaemonError;
 
 const APP_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -57,7 +57,7 @@ pub fn log_format(
     )
 }
 
-fn run() -> Result<(), GameroomDaemonError> {
+fn run() -> Result<(), AdminOpDaemonError> {
     let matches = clap_app!(myapp =>
         (name: APP_NAME)
         (version: VERSION)
@@ -87,7 +87,7 @@ fn run() -> Result<(), GameroomDaemonError> {
         .format(log_format)
         .start()?;
 
-    let config = GameroomConfigBuilder::default()
+    let config = ConsortiumConfigBuilder::default()
         .with_cli_args(&matches)
         .build()?;
 
@@ -98,8 +98,6 @@ fn run() -> Result<(), GameroomDaemonError> {
 
     // Get splinterd node information
     let node = get_node(config.splinterd_url())?;
-
-    let reactor = Reactor::new();
 
     let (rest_api_shutdown_handle, rest_api_join_handle) = rest_api::run(
         config.rest_api_endpoint(),
@@ -118,13 +116,6 @@ fn run() -> Result<(), GameroomDaemonError> {
     .expect("Error setting Ctrl-C handler");
 
     let _ = rest_api_join_handle.join();
-
-    if let Err(err) = reactor.shutdown() {
-        error!(
-            "Unable to cleanly shutdown application authorization handler reactor: {}",
-            err
-        );
-    }
 
     Ok(())
 }

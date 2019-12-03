@@ -79,7 +79,7 @@ pub fn submit_scabbard_payload(
     signed_payload: web::Bytes,
     query: web::Query<HashMap<String, String>>,
 ) -> Box<dyn Future<Item = HttpResponse, Error = Error>> {
-    let service_id = format!("gameroom_{}", node_info.identity);
+    let service_id = format!("consortium_{}", node_info.identity);
     let wait = query
         .get("wait")
         .map(|val| match val.as_ref() {

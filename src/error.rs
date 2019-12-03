@@ -1,4 +1,5 @@
 // Copyright 2019 Cargill Incorporated
+// Copyright 2019 Walmart Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,46 +19,42 @@ use std::fmt;
 use sawtooth_sdk::signing::Error as KeyGenError;
 
 use crate::rest_api::RestApiServerError;
-use gameroom_database::DatabaseError;
 
 #[derive(Debug)]
-pub enum GameroomDaemonError {
+pub enum AdminOpDaemonError {
     LoggingInitializationError(flexi_logger::FlexiLoggerError),
     ConfigurationError(Box<ConfigurationError>),
-    DatabaseError(Box<DatabaseError>),
     RestApiError(RestApiServerError),
     KeyGenError(KeyGenError),
     GetNodeError(GetNodeError),
 }
 
-impl Error for GameroomDaemonError {
+impl Error for AdminOpDaemonError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            GameroomDaemonError::LoggingInitializationError(err) => Some(err),
-            GameroomDaemonError::ConfigurationError(err) => Some(err),
-            GameroomDaemonError::DatabaseError(err) => Some(&**err),
-            GameroomDaemonError::RestApiError(err) => Some(err),
-            GameroomDaemonError::KeyGenError(err) => Some(err),
-            GameroomDaemonError::GetNodeError(err) => Some(err),
+            AdminOpDaemonError::LoggingInitializationError(err) => Some(err),
+            AdminOpDaemonError::ConfigurationError(err) => Some(err),
+            AdminOpDaemonError::RestApiError(err) => Some(err),
+            AdminOpDaemonError::KeyGenError(err) => Some(err),
+            AdminOpDaemonError::GetNodeError(err) => Some(err),
         }
     }
 }
 
-impl fmt::Display for GameroomDaemonError {
+impl fmt::Display for AdminOpDaemonError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            GameroomDaemonError::LoggingInitializationError(e) => {
+            AdminOpDaemonError::LoggingInitializationError(e) => {
                 write!(f, "Logging initialization error: {}", e)
             }
-            GameroomDaemonError::ConfigurationError(e) => write!(f, "Coniguration error: {}", e),
-            GameroomDaemonError::DatabaseError(e) => write!(f, "Database error: {}", e),
-            GameroomDaemonError::RestApiError(e) => write!(f, "Rest API error: {}", e),
-            GameroomDaemonError::KeyGenError(e) => write!(
+            AdminOpDaemonError::ConfigurationError(e) => write!(f, "Coniguration error: {}", e),
+            AdminOpDaemonError::RestApiError(e) => write!(f, "Rest API error: {}", e),
+            AdminOpDaemonError::KeyGenError(e) => write!(
                 f,
                 "an error occurred while generating a new key pair: {}",
                 e
             ),
-            GameroomDaemonError::GetNodeError(e) => write!(
+            AdminOpDaemonError::GetNodeError(e) => write!(
                 f,
                 "an error occurred while getting splinterd node information: {}",
                 e
@@ -66,27 +63,21 @@ impl fmt::Display for GameroomDaemonError {
     }
 }
 
-impl From<flexi_logger::FlexiLoggerError> for GameroomDaemonError {
-    fn from(err: flexi_logger::FlexiLoggerError) -> GameroomDaemonError {
-        GameroomDaemonError::LoggingInitializationError(err)
+impl From<flexi_logger::FlexiLoggerError> for AdminOpDaemonError {
+    fn from(err: flexi_logger::FlexiLoggerError) -> AdminOpDaemonError {
+        AdminOpDaemonError::LoggingInitializationError(err)
     }
 }
 
-impl From<DatabaseError> for GameroomDaemonError {
-    fn from(err: DatabaseError) -> GameroomDaemonError {
-        GameroomDaemonError::DatabaseError(Box::new(err))
+impl From<RestApiServerError> for AdminOpDaemonError {
+    fn from(err: RestApiServerError) -> AdminOpDaemonError {
+        AdminOpDaemonError::RestApiError(err)
     }
 }
 
-impl From<RestApiServerError> for GameroomDaemonError {
-    fn from(err: RestApiServerError) -> GameroomDaemonError {
-        GameroomDaemonError::RestApiError(err)
-    }
-}
-
-impl From<KeyGenError> for GameroomDaemonError {
-    fn from(err: KeyGenError) -> GameroomDaemonError {
-        GameroomDaemonError::KeyGenError(err)
+impl From<KeyGenError> for AdminOpDaemonError {
+    fn from(err: KeyGenError) -> AdminOpDaemonError {
+        AdminOpDaemonError::KeyGenError(err)
     }
 }
 
@@ -107,9 +98,9 @@ impl fmt::Display for ConfigurationError {
     }
 }
 
-impl From<ConfigurationError> for GameroomDaemonError {
+impl From<ConfigurationError> for AdminOpDaemonError {
     fn from(err: ConfigurationError) -> Self {
-        GameroomDaemonError::ConfigurationError(Box::new(err))
+        AdminOpDaemonError::ConfigurationError(Box::new(err))
     }
 }
 
@@ -128,8 +119,8 @@ impl fmt::Display for GetNodeError {
     }
 }
 
-impl From<GetNodeError> for GameroomDaemonError {
+impl From<GetNodeError> for AdminOpDaemonError {
     fn from(err: GetNodeError) -> Self {
-        GameroomDaemonError::GetNodeError(err)
+        AdminOpDaemonError::GetNodeError(err)
     }
 }

@@ -28,7 +28,7 @@ pub use error::{RestApiResponseError, RestApiServerError};
 use routes::ErrorResponse;
 
 #[derive(Clone)]
-pub struct GameroomdData {
+pub struct ConsortiumData {
     pub public_key: String,
 }
 
@@ -56,7 +56,7 @@ pub fn run(
 > {
     let bind_url = bind_url.to_owned();
     let splinterd_url = splinterd_url.to_owned();
-    let gameroomd_data = GameroomdData { public_key };
+    let consortium_data = ConsortiumData { public_key };
     let (tx, rx) = mpsc::channel();
     let join_handle = thread::Builder::new()
         .name("AdminDaemonService".into())
@@ -68,7 +68,7 @@ pub fn run(
                     .data(Client::new())
                     .data(splinterd_url.to_owned())
                     .data(node.clone())
-                    .data(gameroomd_data.clone())
+                    .data(consortium_data.clone())
                     .data(
                         // change path extractor configuration
                         web::Path::<String>::configure(|cfg| {
@@ -90,17 +90,7 @@ pub fn run(
                     .service(web::resource("/nodes").route(web::get().to_async(routes::list_nodes)))
                     .service(
                         web::resource("/circuits/propose")
-                            .route(web::post().to_async(routes::propose_gameroom)),
-                    )
-                    .service(
-                        web::scope("/users")
-                            .service(
-                                web::resource("").route(web::post().to_async(routes::register)),
-                            )
-                            .service(
-                                web::resource("/authenticate")
-                                    .route(web::post().to_async(routes::login)),
-                            ),
+                            .route(web::post().to_async(routes::propose_consortium)),
                     )
                     .service(
                         web::scope("/proposals")
@@ -108,14 +98,6 @@ pub fn run(
                                 web::resource("/{proposal_id}/vote")
                                     .route(web::post().to_async(routes::proposal_vote)),
                             )
-                            .service(
-                                    web::resource("/{proposal_id}")
-                                        .route(web::get().to_async(routes::fetch_proposal)),
-                                )
-                                .service(
-                                    web::resource("")
-                                        .route(web::get().to_async(routes::list_proposals)),
-                                ),
                         )
                         .service(
                             web::resource("/submit")
@@ -124,22 +106,11 @@ pub fn run(
                         .service(
                             web::scope("/circuits")
                                 .service(
-                                    web::resource("")
-                                        .route(web::get().to_async(routes::list_gamerooms)),
-                                )
-                                .service(
                                     web::scope("/{circuit_id}")
-                                    .service(
-                                        web::resource("")
-                                            .route(web::get().to_async(routes::fetch_gameroom)),
-                                    )
                                     .service(web::resource("/batches").route(
                                         web::post().to_async(routes::submit_scabbard_payload),
                                     )),
                             ),
-                    )
-                    .service(
-                        web::resource("/subscribe").route(web::get().to(routes::connect_socket)),
                     )
                     .service(
                         web::scope("/keys").service(
