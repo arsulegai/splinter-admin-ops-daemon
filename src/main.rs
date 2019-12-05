@@ -64,7 +64,6 @@ fn run() -> Result<(), AdminOpDaemonError> {
         (author: "Walmart Inc.")
         (about: "Daemon Package for PO Administration")
         (@arg verbose: -v +multiple "Log verbosely")
-        (@arg database_url: --("database-url") +takes_value "Database connection for Gameroom rest API")
         (@arg bind: -b --bind +takes_value "connection endpoint for Administration Service rest API")
         (@arg splinterd_url: --("splinterd-url") +takes_value "connection endpoint to SplinterD rest API")
     )
