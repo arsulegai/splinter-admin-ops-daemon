@@ -52,21 +52,3 @@ test-authorization-handler = []
 [[bin]]
 name = "admin-serviced"
 path = "src/main.rs"
-
-[package.metadata.deb]
-maintainer = "The Splinter Team"
-depends = "$auto"
-assets = [
-    ["packaging/systemd/gameroomd.service", "/lib/systemd/system/gameroomd.service", "644"],
-    ["packaging/systemd/gameroomd", "/etc/default/gameroomd", "644"],
-    ["target/release/gameroomd", "/usr/bin/gameroomd", "755"]
-]
-conf-files = [
-    "/etc/default/gameroomd",
-    "/lib/systemd/system/gameroomd.service"
-]
-maintainer-scripts = "packaging/ubuntu"
-extended-description = """\
-Gameroom is a demo Splinter application that allows you to set up dynamic \
-multi-party circuits (called "gamerooms") and play tic tac toe with \
-shared state"""
